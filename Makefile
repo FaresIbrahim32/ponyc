@@ -442,26 +442,8 @@ clean:
 distclean:
 	$(SILENT)([ -d build ] && rm -rf build) || true
 
-install: build
-	@mkdir -p $(ponydir)/bin
-	@mkdir -p $(ponydir)/lib/$(arch)
-	@mkdir -p $(ponydir)/include/pony/detail
-	$(SILENT)cp $(buildDir)/src/libponyrt/libponyrt.a $(ponydir)/lib/$(arch)
-	$(SILENT)if [ -f $(buildDir)/src/libponyrt/libdtrace_probes.a ]; then cp $(buildDir)/src/libponyrt/libdtrace_probes.a $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/libponyc.a ]; then cp $(outDir)/libponyc.a $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/libponyc-standalone.a ]; then cp $(outDir)/libponyc-standalone.a $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/libponyrt-pic.a ]; then cp $(outDir)/libponyrt-pic.a $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/crtbeginS.o ]; then cp $(outDir)/crtbeginS.o $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/crtendS.o ]; then cp $(outDir)/crtendS.o $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/crtbeginT.o ]; then cp $(outDir)/crtbeginT.o $(ponydir)/lib/$(arch); fi
-	$(SILENT)if [ -f $(outDir)/crtend.o ]; then cp $(outDir)/crtend.o $(ponydir)/lib/$(arch); fi
-	$(SILENT)cp $(outDir)/ponyc $(ponydir)/bin
-	$(SILENT)if [ -f $(outDir)/pony-lsp ]; then cp $(outDir)/pony-lsp $(ponydir)/bin; fi
-	$(SILENT)if [ -f $(outDir)/pony-lint ]; then cp $(outDir)/pony-lint $(ponydir)/bin; fi
-	$(SILENT)if [ -f $(outDir)/pony-doc ]; then cp $(outDir)/pony-doc $(ponydir)/bin; fi
-	$(SILENT)cp src/libponyrt/pony.h $(ponydir)/include
-	$(SILENT)cp src/common/pony/detail/atomics.h $(ponydir)/include/pony/detail
-	$(SILENT)cp -r packages $(ponydir)/
+install: all
+	$(SILENT)cd '$(buildDir)' && env DESTDIR= CC="$(CC)" CXX="$(CXX)" cmake --install '$(buildDir)' --prefix $(ponydir) --config $(config)
 ifeq ($(symlink),yes)
 	@mkdir -p $(prefix)/bin
 	@mkdir -p $(prefix)/lib
@@ -470,11 +452,14 @@ ifeq ($(symlink),yes)
 	$(SILENT)if [ -f $(ponydir)/bin/pony-lsp ]; then ln -s -f $(ponydir)/bin/pony-lsp $(prefix)/bin/pony-lsp; fi
 	$(SILENT)if [ -f $(ponydir)/bin/pony-lint ]; then ln -s -f $(ponydir)/bin/pony-lint $(prefix)/bin/pony-lint; fi
 	$(SILENT)if [ -f $(ponydir)/bin/pony-doc ]; then ln -s -f $(ponydir)/bin/pony-doc $(prefix)/bin/pony-doc; fi
-	$(SILENT)if [ -f $(ponydir)/lib/$(arch)/libponyc.a ]; then ln -s -f $(ponydir)/lib/$(arch)/libponyc.a $(prefix)/lib/libponyc.a; fi
-	$(SILENT)if [ -f $(ponydir)/lib/$(arch)/libponyc-standalone.a ]; then ln -s -f $(ponydir)/lib/$(arch)/libponyc-standalone.a $(prefix)/lib/libponyc-standalone.a; fi
-	$(SILENT)if [ -f $(ponydir)/lib/$(arch)/libponyrt.a ]; then ln -s -f $(ponydir)/lib/$(arch)/libponyrt.a $(prefix)/lib/libponyrt.a; fi
-	$(SILENT)if [ -f $(ponydir)/lib/$(arch)/libponyrt-pic.a ]; then ln -s -f $(ponydir)/lib/$(arch)/libponyrt-pic.a $(prefix)/lib/libponyrt-pic.a; fi
-	$(SILENT)if [ -f $(ponydir)/lib/$(arch)/libdtrace_probes.a ]; then ln -s -f $(ponydir)/lib/$(arch)/libdtrace_probes.a $(prefix)/lib/libdtrace_probes.a; fi
+	$(SILENT)cmake_arch=`grep '^PONY_ARCH:' '$(buildDir)/CMakeCache.txt' | cut -d= -f2`; \
+	if [ -z "$$cmake_arch" ]; then echo "install: could not read PONY_ARCH from $(buildDir)/CMakeCache.txt; run 'make configure' first" >&2; exit 1; fi; \
+	libdir="$(ponydir)/lib/$$cmake_arch"; \
+	if [ -f "$$libdir/libponyc.a" ]; then ln -s -f "$$libdir/libponyc.a" "$(prefix)/lib/libponyc.a"; fi; \
+	if [ -f "$$libdir/libponyc-standalone.a" ]; then ln -s -f "$$libdir/libponyc-standalone.a" "$(prefix)/lib/libponyc-standalone.a"; fi; \
+	if [ -f "$$libdir/libponyrt.a" ]; then ln -s -f "$$libdir/libponyrt.a" "$(prefix)/lib/libponyrt.a"; fi; \
+	if [ -f "$$libdir/libponyrt-pic.a" ]; then ln -s -f "$$libdir/libponyrt-pic.a" "$(prefix)/lib/libponyrt-pic.a"; fi; \
+	if [ -f "$$libdir/libdtrace_probes.a" ]; then ln -s -f "$$libdir/libdtrace_probes.a" "$(prefix)/lib/libdtrace_probes.a"; fi
 	$(SILENT)ln -s -f $(ponydir)/include/pony.h $(prefix)/include/pony.h
 	$(SILENT)ln -s -f $(ponydir)/include/pony/detail/atomics.h $(prefix)/include/pony/detail/atomics.h
 endif

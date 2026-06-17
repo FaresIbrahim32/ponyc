@@ -519,25 +519,66 @@ else()
     add_subdirectory(tools/pony-lint)
     add_subdirectory(tools/pony-doc)
 
+    # The ponyc compiler binary. Test and benchmark binaries are deliberately
+    # NOT installed — they are build artifacts, not part of a user install.
     install(TARGETS
         ponyc
-        libponyc.tests
-        libponyc.benchmarks
-        libponyrt.benchmarks
-        libponyrt.tests
         DESTINATION bin)
+
+    # Where the runtime libraries are installed. The compiler locates its runtime
+    # relative to the ponyc binary via add_exec_dir() in
+    # src/libponyc/pkg/package.c, and that lookup differs by platform:
+    #   * non-Windows: "../lib/<arch>", where <arch> is the compiled-in PONY_ARCH
+    #     (or --link-arch when the user overrides it at compile time). The install
+    #     destination must match PONY_ARCH so the default lookup resolves.
+    #   * Windows: a flat "..\lib" with no arch component.
+    # The destination is gated on platform to stay in sync with both branches.
+    if(WIN32)
+        set(PONY_LIB_DESTINATION lib)
+    else()
+        set(PONY_LIB_DESTINATION lib/${PONY_ARCH})
+    endif()
+
+    # Static libraries that are real CMake targets; CMake resolves their archive
+    # paths regardless of where they are emitted.
     install(TARGETS
+        libponyc
         libponyrt
-        DESTINATION lib)
+        DESTINATION ${PONY_LIB_DESTINATION})
+
+    # Static libs and crt objects produced by custom build steps into the output
+    # directory. OPTIONAL because which ones exist is platform/config dependent:
+    # libponyrt-pic.a (Linux), libponyc-standalone.a, the crt objects (Linux),
+    # and libdtrace_probes.a (FreeBSD + DTrace).
+    install(FILES
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/libponyc-standalone.a
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/libponyrt-pic.a
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/libdtrace_probes.a
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/crtbeginS.o
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/crtendS.o
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/crtbeginT.o
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/crtend.o
+        DESTINATION ${PONY_LIB_DESTINATION}
+        OPTIONAL)
+
+    # Public headers.
+    install(FILES src/libponyrt/pony.h DESTINATION include)
+    install(FILES src/common/pony/detail/atomics.h DESTINATION include/pony/detail)
+
     install(DIRECTORY packages/ DESTINATION packages)
     install(DIRECTORY examples/ DESTINATION examples PATTERN .gitignore EXCLUDE)
+    # OPTIONAL mirrors the old Makefile's "if [ -f ... ]" guards: a build that
+    # excludes a tool binary should skip it, not fail the whole install.
     install(PROGRAMS
         $<TARGET_FILE_DIR:ponyc>/pony-lsp${CMAKE_EXECUTABLE_SUFFIX}
-        DESTINATION bin)
+        DESTINATION bin
+        OPTIONAL)
     install(PROGRAMS
         $<TARGET_FILE_DIR:ponyc>/pony-lint${CMAKE_EXECUTABLE_SUFFIX}
-        DESTINATION bin)
+        DESTINATION bin
+        OPTIONAL)
     install(PROGRAMS
         $<TARGET_FILE_DIR:ponyc>/pony-doc${CMAKE_EXECUTABLE_SUFFIX}
-        DESTINATION bin)
+        DESTINATION bin
+        OPTIONAL)
 endif()
